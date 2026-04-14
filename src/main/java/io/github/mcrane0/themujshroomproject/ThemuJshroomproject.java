@@ -30,7 +30,8 @@ public class ThemuJshroomproject {
         DataFrame carDFRaw = carDataCSV.read(pathToCSV);
         System.out.println("carDFRaw:\n" + carDFRaw.toString());
         
-        int[] carDFClasses = classesToNumbers(carDFRaw.column("V7").toStringArray());
+        int[] carDFClasses = new int[carDFRaw.size()];
+        classesToNumbers(carDFClasses, carDFRaw.column("V7").toStringArray());
         DataFrame carDF = carDFRaw.drop("V7");
         
         valuesToNumbers(carDF);
@@ -38,52 +39,51 @@ public class ThemuJshroomproject {
         
         
         // KNN implementation and testing
-        int neighbors = 1;
-        KNN knnThing = new KNN(KDTree.of(carDF.toArray()), carDFClasses, neighbors);
-        System.out.println("\nKNN, NEIGHBORS: " + neighbors);
-        testKNN(knnThing, carDF, carDFClasses);
-        
-        neighbors = 3;
-        knnThing = new KNN(KDTree.of(carDF.toArray()), carDFClasses, neighbors);
-        System.out.println("\nKNN, NEIGHBORS: " + neighbors);
-        testKNN(knnThing, carDF, carDFClasses);
-        
-        neighbors = 5;
-        knnThing = new KNN(KDTree.of(carDF.toArray()), carDFClasses, neighbors);
-        System.out.println("\nKNN, NEIGHBORS: " + neighbors);
-        testKNN(knnThing, carDF, carDFClasses);
-        
-        neighbors = 7;
-        knnThing = new KNN(KDTree.of(carDF.toArray()), carDFClasses, neighbors);
-        System.out.println("\nKNN, NEIGHBORS: " + neighbors);
-        testKNN(knnThing, carDF, carDFClasses);
-        
-        neighbors = 10;
-        knnThing = new KNN(KDTree.of(carDF.toArray()), carDFClasses, neighbors);
-        System.out.println("\nKNN, NEIGHBORS: " + neighbors);
-        testKNN(knnThing, carDF, carDFClasses);
+//        int neighbors = 1;
+//        KNN knnThing = new KNN(KDTree.of(carDF.toArray()), carDFClasses, neighbors);
+//        System.out.println("\nKNN, NEIGHBORS: " + neighbors);
+//        testKNN(knnThing, carDF, carDFClasses);
+//        
+//        neighbors = 3;
+//        knnThing = new KNN(KDTree.of(carDF.toArray()), carDFClasses, neighbors);
+//        System.out.println("\nKNN, NEIGHBORS: " + neighbors);
+//        testKNN(knnThing, carDF, carDFClasses);
+//        
+//        neighbors = 5;
+//        knnThing = new KNN(KDTree.of(carDF.toArray()), carDFClasses, neighbors);
+//        System.out.println("\nKNN, NEIGHBORS: " + neighbors);
+//        testKNN(knnThing, carDF, carDFClasses);
+//        
+//        neighbors = 7;
+//        knnThing = new KNN(KDTree.of(carDF.toArray()), carDFClasses, neighbors);
+//        System.out.println("\nKNN, NEIGHBORS: " + neighbors);
+//        testKNN(knnThing, carDF, carDFClasses);
+//        
+//        neighbors = 10;
+//        knnThing = new KNN(KDTree.of(carDF.toArray()), carDFClasses, neighbors);
+//        System.out.println("\nKNN, NEIGHBORS: " + neighbors);
+//        testKNN(knnThing, carDF, carDFClasses);
         
         
         // SVM implementation and testing
-        svmOneAgainstMany((carDF.toArray()), carDFClasses, 7.5);
-        svmOneAgainstMany((carDF.toArray()), carDFClasses, 10.0);
-        svmOneAgainstMany((carDF.toArray()), carDFClasses, 12.5);
+        //svmOneAgainstOne((carDF.toArray()), carDFClasses, 5.0);
+        Classifier<double[]> svmThing = SVM.fit((carDF.toArray()), carDFClasses, (new SVM.Options(1.0).toProperties()));
+        testSVM(svmThing, carDF, carDFClasses);
+        
     }
     
-    public static int[] classesToNumbers(String[] classesRaw){
-        int[] numClass = new int[classesRaw.length];
+    public static void classesToNumbers(int[] classArr, String[] classesRaw){
         for (int i = 0; i < classesRaw.length; i++){
             // V7 - class:  unacc, acc, good, vgood
             String value = classesRaw[i];
             switch (value) {
-                case "unacc" -> numClass[i] = 0;
-                case "acc" -> numClass[i] = 1;
-                case "good" -> numClass[i] = 2;
+                case "unacc" -> classArr[i] = 0;
+                case "acc" -> classArr[i] = 1;
+                case "good" -> classArr[i] = 2;
                 default -> // value = "vgood"
-                    numClass[i] = 3;
+                    classArr[i] = 3;
             }
         }
-        return numClass;
     }
     
     public static void valuesToNumbers(DataFrame df){
@@ -155,9 +155,9 @@ public class ThemuJshroomproject {
             if (prediction == classes[i])
                 predCorrect++;
         }
-        System.out.println("RESULTS:"
-                            + "\nCorrect Predictions:\t" + predCorrect
-                            + "\nIncorrect:\t\t" + (df.size() - predCorrect));
+        System.out.println("KNN:"
+                            + "\nCorrect:\t" + predCorrect
+                            + "\nIncorrect:\t" + (df.size() - predCorrect));
     }
     
     public static void svmOneAgainstMany(double[][] data, int[] classes, double softMargin){
@@ -320,6 +320,134 @@ public class ThemuJshroomproject {
                             + "\nCorrect:\t" + predCorrect
                             + "\nIncorrect:\t" + (data.length - predCorrect));
 
+    }
+    
+    public static void svmOneAgainstOne(double[][] data, int[] classes, double softMargin){
+        int[] svmFinalPreds = new int[classes.length];
+
+        // 0 and 1 against 2 and 3
+        int[] zerooneAgainstTwothreeClasses = new int[classes.length];
+        int[] zerooneAgainstTwothreePreds = new int[classes.length]; // predictions
+        double[] zerooneAgainstTwothreeScore = new double[classes.length]; // score/confidence of predictions
+        for (int i = 0; i < classes.length; i++){
+            if (classes[i] == 0 || classes[i] == 1) // class = 0: unacc or 1: acc
+                zerooneAgainstTwothreeClasses[i] = -1;
+            else // class = (anything else)
+                zerooneAgainstTwothreeClasses[i] = 1;
+        }
+        LinearSVM zerooneAgainstTwothree = SVM.fit(data, zerooneAgainstTwothreeClasses, new SVM.Options(softMargin));
+        
+        for (int j = 0; j < classes.length; j++){
+            zerooneAgainstTwothreePreds[j] = zerooneAgainstTwothree.predict(data[j]);
+            zerooneAgainstTwothreeScore[j] = zerooneAgainstTwothree.score(data[j]);
+        }
+        
+        
+        // split data into two arrays
+        int zeroAgainstOneSize = 0;
+        int twoAgainstThreeSize = 0;
+        
+        for (int i = 0; i < zerooneAgainstTwothreePreds.length; i++){ // loop to find size of each array
+            if (zerooneAgainstTwothreePreds[i] == -1) // class = 0: unacc or 1: acc
+                zeroAgainstOneSize++;
+            else // class = (anything else)
+                twoAgainstThreeSize++;
+        }
+        
+        // initialize arrays
+        double[][] zeroAgainstOneData = new double[zeroAgainstOneSize][6];
+        int[] zeroAgainstOneClasses = new int[zeroAgainstOneSize];
+        double[][] twoAgainstThreeData = new double[twoAgainstThreeSize][6];
+        int[] twoAgainstThreeClasses = new int[twoAgainstThreeSize];
+        
+        int zAOCount = 0; int tATCount = 0; // counters for arrays
+        for (int j = 0; j < zerooneAgainstTwothreePreds.length; j++){ // loop to fill arrays
+            if (zerooneAgainstTwothreePreds[j] == -1){ // class 0: unacc or 1: acc
+                zeroAgainstOneData[zAOCount] = data[j].clone();
+                if (classes[j] == 0) // class = 0: unacc
+                    zeroAgainstOneClasses[zAOCount] = -1;
+                else // class = (1: acc)
+                    zeroAgainstOneClasses[zAOCount] = 1;
+                zAOCount++;
+            }
+            else { // class = (anything else)
+                twoAgainstThreeData[tATCount] = data[j].clone();
+                if (classes[j] == 2) // class = 2: good
+                    twoAgainstThreeClasses[tATCount] = -1;
+                else // class = (3: vgood)
+                    twoAgainstThreeClasses[tATCount] = 1;
+                tATCount++;
+            }
+        }
+        
+        
+        // 0 against 1
+        int[] zeroAgainstOnePreds = new int[zeroAgainstOneSize]; // predictions
+        double[] zeroAgainstOneScore = new double[zeroAgainstOneSize]; // score/confidence of predictions
+        LinearSVM zeroAgainstOne = SVM.fit(zeroAgainstOneData, zeroAgainstOneClasses, new SVM.Options(softMargin));
+        
+        for (int j = 0; j < zeroAgainstOneSize; j++){
+            zeroAgainstOnePreds[j] = zeroAgainstOne.predict(data[j]);
+            zeroAgainstOneScore[j] = zeroAgainstOne.score(data[j]);
+        }
+        
+        
+        // 2 against 3
+        int[] twoAgainstThreePreds = new int[twoAgainstThreeSize]; // predictions
+        double[] twoAgainstThreeScore = new double[twoAgainstThreeSize]; // score/confidence of predictions
+        LinearSVM twoAgainstThree = SVM.fit(twoAgainstThreeData, twoAgainstThreeClasses, new SVM.Options(softMargin));
+        
+        for (int j = 0; j < twoAgainstThreeSize; j++){
+            twoAgainstThreePreds[j] = twoAgainstThree.predict(data[j]);
+            twoAgainstThreeScore[j] = twoAgainstThree.score(data[j]);
+        }
+        
+        
+        // combine predictions into svmFinalPreds
+        zAOCount = 0; tATCount = 0; // counters for arrays
+        for (int i = 0; i < classes.length; i++){
+            if (zerooneAgainstTwothreePreds[i] == -1){ // class = 0: unacc or 1: acc
+                if (zeroAgainstOnePreds[zAOCount] == -1){ // class = 0: unacc
+                    svmFinalPreds[i] = 0;
+                }
+                else { // class = (1: acc)
+                    svmFinalPreds[i] = 1;
+                }
+                zAOCount++;
+            }
+            else { // class = (anything else)
+                if (twoAgainstThreePreds[tATCount] == -1){ // class = 2: good
+                    svmFinalPreds[i] = 0;
+                }
+                else { // class = (1: vgood)
+                    svmFinalPreds[i] = 1;
+                }
+                tATCount++;
+            }
+        }
+        
+        // test final predictions
+        int predCorrect = 0;
+        for (int j = 0; j < classes.length; j++){
+            if (svmFinalPreds[j] == classes[j])
+                predCorrect++;
+        } 
+        System.out.println("\nSVM (C = " + softMargin + "): FINAL:"
+                            + "\nCorrect:\t" + predCorrect
+                            + "\nIncorrect:\t" + (classes.length - predCorrect));
+    }
+    
+    public static void testSVM(Classifier<double[]> model, DataFrame df, int[] classes){
+        int predCorrect = 0;
+        for (int i = 0; i < df.size(); i++){
+            int prediction = model.predict(df.get(i).toArray());
+            //System.out.print("DEBUG:\ti=" + i + "\tpred=" + prediction + "\ttrue=" + classes[i]);
+            if (prediction == classes[i])
+                predCorrect++;
+        }
+        System.out.println("SVM:"
+                            + "\nCorrect:\t" + predCorrect
+                            + "\nIncorrect:\t" + (df.size() - predCorrect));
     }
 
 }
