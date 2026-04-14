@@ -7,6 +7,7 @@ package io.github.mcrane0.themujshroomproject;
 import java.io.IOException;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Properties;
 import smile.classification.Classifier;
 import smile.io.*;
@@ -64,7 +65,9 @@ public class ThemuJshroomproject {
         
         
         // SVM implementation and testing
-        svmOneAgainstMany((carDF.toArray()), carDFClasses);
+        svmOneAgainstMany((carDF.toArray()), carDFClasses, 7.5);
+        svmOneAgainstMany((carDF.toArray()), carDFClasses, 10.0);
+        svmOneAgainstMany((carDF.toArray()), carDFClasses, 12.5);
     }
     
     public static int[] classesToNumbers(String[] classesRaw){
@@ -146,26 +149,177 @@ public class ThemuJshroomproject {
     
     public static void testKNN(KNN model, DataFrame df, int[] classes){
         int predCorrect = 0;
-        int predIncorrect = 0;
         for (int i = 0; i < df.size(); i++){
             int prediction = model.predict(df.get(i).toArray());
             //System.out.print("DEBUG:\ti=" + i + "\tpred=" + prediction + "\ttrue=" + classes[i]);
-            if (prediction == classes[i]){
+            if (prediction == classes[i])
                 predCorrect++;
-                //System.out.println("\tcorrect.");
-            }   
-            else{
-                predIncorrect++;
-                //System.out.println("\tincorrect.");
-            }
         }
         System.out.println("RESULTS:"
                             + "\nCorrect Predictions:\t" + predCorrect
-                            + "\nIncorrect:\t\t" + predIncorrect);
+                            + "\nIncorrect:\t\t" + (df.size() - predCorrect));
     }
     
-    public static void svmOneAgainstMany(double[][] data, int[] classes){
+    public static void svmOneAgainstMany(double[][] data, int[] classes, double softMargin){
+        // V7 - class:  unacc, acc, good, vgood
+        int[] svmPreds = new int[classes.length]; // final predictions
+        Arrays.fill(svmPreds, -1);
         
+        // 0 against all
+        int[] zeroAgainstAllClasses = new int[classes.length];
+        int[] zeroAgainstAllPreds = new int[classes.length]; // predictions
+        double[] zeroAgainstAllPredsScore = new double[classes.length]; // score/confidence of predictions
+
+        for (int i = 0; i < classes.length; i++){
+            if (classes[i] == 0) // class = unacc
+                zeroAgainstAllClasses[i] = 1;
+            else // class = (anything else)
+                zeroAgainstAllClasses[i] = -1;
+        }
+        LinearSVM zeroAgainstAll = SVM.fit(data, zeroAgainstAllClasses, new SVM.Options(softMargin));
+        int predCorrect = 0;
+        for (int j = 0; j < data.length; j++){
+            zeroAgainstAllPreds[j] = zeroAgainstAll.predict(data[j]);
+            zeroAgainstAllPredsScore[j] = zeroAgainstAll.score(data[j]);
+            if (zeroAgainstAllPreds[j] == zeroAgainstAllClasses[j])
+                predCorrect++;
+        }
+        System.out.println("\nSVM: 0 AGAINST ALL:"
+                            + "\nCorrect:\t" + predCorrect
+                            + "\nIncorrect:\t" + (data.length - predCorrect));
+        for (int k = 0; k < data.length; k++){
+            if (zeroAgainstAllPreds[k] == 1)
+                svmPreds[k] = 0;
+        }
+
+        // 1 against all
+        int[] oneAgainstAllClasses = new int[classes.length];
+        int[] oneAgainstAllPreds = new int[classes.length]; // predictions
+        double[] oneAgainstAllPredsScore = new double[classes.length]; // score/confidence of predictions
+
+        for (int i = 0; i < classes.length; i++){
+            if (classes[i] == 1) // class = acc
+                oneAgainstAllClasses[i] = 1;
+            else // class = (anything else)
+                oneAgainstAllClasses[i] = -1;
+        }
+        LinearSVM oneAgainstAll = SVM.fit(data, oneAgainstAllClasses, new SVM.Options(softMargin));
+        predCorrect = 0;
+        for (int j = 0; j < data.length; j++){
+            oneAgainstAllPreds[j] = oneAgainstAll.predict(data[j]);
+            oneAgainstAllPredsScore[j] = oneAgainstAll.score(data[j]);
+            if (oneAgainstAllPreds[j] == oneAgainstAllClasses[j])
+                predCorrect++;
+        }
+        System.out.println("\nSVM: 1 AGAINST ALL:"
+                            + "\nCorrect:\t" + predCorrect
+                            + "\nIncorrect:\t" + (data.length - predCorrect));
+        for (int k = 0; k < data.length; k++){
+            if (oneAgainstAllPreds[k] == 1){
+                if (svmPreds[k] == 0 && oneAgainstAllPredsScore[k] <= zeroAgainstAllPredsScore[k]){
+                    svmPreds[k] = 0;
+                }
+                else {
+                    svmPreds[k] = 1;
+                }
+            }
+        }
+        
+        // 2 against all
+        int[] twoAgainstAllClasses = new int[classes.length];
+        int[] twoAgainstAllPreds = new int[classes.length]; // predictions
+        double[] twoAgainstAllPredsScore = new double[classes.length]; // score/confidence of predictions
+
+        for (int i = 0; i < classes.length; i++){
+            if (classes[i] == 2) // class = good
+                twoAgainstAllClasses[i] = 1;
+            else // class = (anything else)
+                twoAgainstAllClasses[i] = -1;
+        }
+        LinearSVM twoAgainstAll = SVM.fit(data, twoAgainstAllClasses, new SVM.Options(softMargin));
+        predCorrect = 0;
+        for (int j = 0; j < data.length; j++){
+            twoAgainstAllPreds[j] = twoAgainstAll.predict(data[j]);
+            twoAgainstAllPredsScore[j] = twoAgainstAll.score(data[j]);
+            if (twoAgainstAllPreds[j] == twoAgainstAllClasses[j])
+                predCorrect++;
+        }
+        System.out.println("\nSVM: 2 AGAINST ALL:"
+                            + "\nCorrect:\t" + predCorrect
+                            + "\nIncorrect:\t" + (data.length - predCorrect));
+        for (int k = 0; k < data.length; k++){
+            if (twoAgainstAllPreds[k] == 1){
+                if (svmPreds[k] != -1){
+                    if (svmPreds[k] == 0 && twoAgainstAllPredsScore[k] <= zeroAgainstAllPredsScore[k]){
+                        svmPreds[k] = 0;
+                    }
+                    else if (svmPreds[k] == 1 && twoAgainstAllPredsScore[k] <= oneAgainstAllPredsScore[k]){
+                        svmPreds[k] = 1;
+                    }
+                    else {
+                        svmPreds[k] = 2;
+                    }
+                }
+                else {
+                    svmPreds[k] = 2;
+                }
+            }
+        }
+        
+        // 3 against all
+        int[] threeAgainstAllClasses = new int[classes.length];
+        int[] threeAgainstAllPreds = new int[classes.length]; // predictions
+        double[] threeAgainstAllPredsScore = new double[classes.length]; // score/confidence of predictions
+
+        for (int i = 0; i < classes.length; i++){
+            if (classes[i] == 3) // class = vgood
+                threeAgainstAllClasses[i] = 1;
+            else // class = (anything else)
+                threeAgainstAllClasses[i] = -1;
+        }
+        LinearSVM threeAgainstAll = SVM.fit(data, threeAgainstAllClasses, new SVM.Options(softMargin));
+        predCorrect = 0;
+        for (int j = 0; j < data.length; j++){
+            threeAgainstAllPreds[j] = threeAgainstAll.predict(data[j]);
+            threeAgainstAllPredsScore[j] = threeAgainstAll.score(data[j]);
+            if (threeAgainstAllPreds[j] == threeAgainstAllClasses[j])
+                predCorrect++;
+        }
+        System.out.println("\nSVM: 3 AGAINST ALL:"
+                            + "\nCorrect:\t" + predCorrect
+                            + "\nIncorrect:\t" + (data.length - predCorrect));
+        for (int k = 0; k < data.length; k++){
+            if (threeAgainstAllPreds[k] == 1){
+                if (svmPreds[k] != -1){
+                    if (svmPreds[k] == 0 && threeAgainstAllPredsScore[k] <= zeroAgainstAllPredsScore[k]){
+                        svmPreds[k] = 0;
+                    }
+                    else if (svmPreds[k] == 1 && threeAgainstAllPredsScore[k] <= oneAgainstAllPredsScore[k]){
+                        svmPreds[k] = 1;
+                    }
+                    else if (svmPreds[k] == 2 && threeAgainstAllPredsScore[k] <= twoAgainstAllPredsScore[k]){
+                        svmPreds[k] = 2;
+                    }
+                    else {
+                        svmPreds[k] = 3;
+                    }
+                }
+                else {
+                    svmPreds[k] = 3;
+                }
+            }
+        }
+        
+        // final test
+        predCorrect = 0;
+        for (int l = 0; l < svmPreds.length; l++){
+            if (svmPreds[l] == classes[l])
+                predCorrect++;
+        }
+        System.out.println("\nSVM (C = " + softMargin + "): FINAL:"
+                            + "\nCorrect:\t" + predCorrect
+                            + "\nIncorrect:\t" + (data.length - predCorrect));
+
     }
 
 }
